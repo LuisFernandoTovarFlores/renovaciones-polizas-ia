@@ -1,0 +1,24 @@
+# Secretos
+.env
+
+# Datos reales de clientes: NUNCA se suben
+datos/
+caratulas/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.xlsx
+*.db
+*.log
+*_estado.json
+*_textos.json
+
+# Los datos de demo se regeneran con scripts/generar_demo.py
+demo/
+
+__pycache__/
+.spyproject/
+.ipynb_checkpoints/

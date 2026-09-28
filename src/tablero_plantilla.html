@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tablero de Renovaciones</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#6b7280;--ac:#1f5fbf;--ok:#1a8f5a;--bad:#c2410c;--bd:#e5e7eb}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b1f27;--tx:#e8eaf0;--mu:#9aa3b2;--ac:#6ea1ff;--ok:#4ade80;--bad:#fb923c;--bd:#2b313c}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:18px 20px 6px}h1{margin:0;font-size:22px}header p{margin:4px 0 0;color:var(--mu)}
+nav{display:flex;gap:6px;padding:10px 20px;flex-wrap:wrap}nav button{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 14px;border-radius:8px;cursor:pointer}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{padding:0 20px 30px}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}
+.k{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px}.k b{display:block;font-size:22px}.k span{color:var(--mu);font-size:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}.card h2{margin:0 0 10px;font-size:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.filtros select,.filtros input{padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}
+th{cursor:pointer;color:var(--mu);font-weight:600;position:sticky;top:0;background:var(--card)}td.n{text-align:right}
+.pill{padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600}.u{background:#fee2e2;color:#991b1b}.m{background:#fef3c7;color:#92400e}.l{background:#dcfce7;color:#166534}
+.sec{display:none}.sec.on{display:block}.mu{color:var(--mu);font-size:12px}button.x{padding:6px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);cursor:pointer}
+</style></head><body>
+<header><h1>Tablero de Renovaciones</h1><p id="sub"></p></header>
+<nav><button data-s="cal" class="on">Calendario</button><button data-s="ret">Retención</button><button data-s="car">Cartera</button><button data-s="per">No renovadas</button></nav>
+<main>
+<div class="kpis" id="kpis"></div>
+
+<section class="sec on" id="cal">
+ <div class="card"><h2>Prima neta por mes de vencimiento (próximos 12 meses)</h2><canvas id="gMes" height="90"></canvas></div>
+ <div class="card"><h2>Pólizas por vencer</h2>
+  <div class="filtros"><select id="fDias"><option value="30">Próximos 30 días</option><option value="60">Próximos 60 días</option><option value="90" selected>Próximos 90 días</option><option value="9999">Todas las vigentes</option></select>
+  <select id="fAseg"></select><select id="fRamo"></select><input id="fTxt" placeholder="Buscar cliente / póliza / RFC"><button class="x" id="csv">Exportar CSV</button></div>
+  <div class="tw"><table id="tCal"></table></div><p class="mu" id="nCal"></p></div>
+</section>
+
+<section class="sec" id="ret">
+ <div class="card"><h2>Retención por año de vencimiento</h2><canvas id="gRetAnio" height="80"></canvas></div>
+ <div class="grid2"><div class="card"><h2>Por aseguradora</h2><div class="tw"><table id="tRA"></table></div></div>
+ <div class="card"><h2>Por ramo</h2><div class="tw"><table id="tRR"></table></div></div></div>
+ <p class="mu">Se cuenta como renovada si el mismo cliente tiene otra carátula del mismo ramo que inicia ±60 días del fin. Una "no renovada" puede ser pérdida real o una carátula que falta en la carpeta.</p>
+</section>
+
+<section class="sec" id="car">
+ <div class="grid2"><div class="card"><h2>Prima neta vigente por aseguradora</h2><canvas id="gAseg"></canvas></div>
+ <div class="card"><h2>Prima neta vigente por ramo</h2><canvas id="gRamo"></canvas></div></div>
+ <div class="grid2"><div class="card"><h2>Top 20 clientes (prima neta vigente)</h2><div class="tw"><table id="tTop"></table></div></div>
+ <div class="card"><h2>Venta cruzada: clientes con un solo ramo</h2><div class="tw"><table id="tCross"></table></div></div></div>
+</section>
+
+<section class="sec" id="per">
+ <div class="card"><h2>Pólizas vencidas sin renovación detectada (desde 2024)</h2><div class="tw"><table id="tPer"></table></div></div>
+</section>
+</main>
+<script>
+const D=/*DATOS*/null;
+const $=id=>document.getElementById(id), fmt=n=>n==null?"—":"$"+Math.round(n).toLocaleString("es-MX");
+const V=D.vigentes, sum=a=>a.reduce((s,x)=>s+(x.prima||0),0);
+const uniq=a=>[...new Set(a)].sort();
+$("sub").textContent=`Actualizado ${D.hoy} · primas netas en MXN (USD×${D.tc.USD}, UDI×${D.tc.UDI})`;
+const retTot=D.retencion.filter(r=>r.anio>=2025), pct=retTot.length?retTot.filter(r=>r.ren).length/retTot.length:0;
+const v90=V.filter(v=>v.dias<=90);
+$("kpis").innerHTML=[
+ [V.length,"pólizas vigentes"],[new Set(V.map(v=>v.cliente)).size,"clientes vigentes"],
+ [fmt(sum(V)),"prima neta vigente"],[v90.length,"vencen en 90 días"],[fmt(sum(v90)),"prima en juego 90 días"],
+ [(pct*100).toFixed(0)+"%","retención (vencidas 2025+)"],[D.sin_prima,"vigentes sin prima neta"]
+].map(([b,s])=>`<div class="k"><b>${b}</b><span>${s}</span></div>`).join("");
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+ document.querySelectorAll("nav button,.sec").forEach(e=>e.classList.remove("on"));b.classList.add("on");$(b.dataset.s).classList.add("on")});
+
+function tabla(el,cols,rows){let k=null,asc=true;
+ const draw=()=>{const r=k==null?rows:[...rows].sort((a,b)=>{const x=a[k],y=b[k];return (x>y?1:x<y?-1:0)*(asc?1:-1)});
+  el.innerHTML="<tr>"+cols.map(c=>`<th data-k="${c[1]}">${c[0]}</th>`).join("")+"</tr>"+
+  r.map(x=>"<tr>"+cols.map(c=>{const v=c[2]?c[2](x):x[c[1]];return `<td class="${typeof x[c[1]]=="number"?"n":""}">${v??""}</td>`}).join("")+"</tr>").join("");
+  el.querySelectorAll("th").forEach(th=>th.onclick=()=>{asc=k==th.dataset.k?!asc:true;k=th.dataset.k;draw()})};draw()}
+
+// Calendario
+const meses=[];for(let i=0;i<12;i++){const d=new Date(D.hoy);d.setDate(1);d.setMonth(d.getMonth()+i);meses.push(d.toISOString().slice(0,7))}
+new Chart($("gMes"),{type:"bar",data:{labels:meses,datasets:[{label:"Prima neta",data:meses.map(m=>sum(V.filter(v=>v.fin.startsWith(m)))),backgroundColor:"#1f5fbf"},
+ {label:"# pólizas",data:meses.map(m=>V.filter(v=>v.fin.startsWith(m)).length),type:"line",yAxisID:"y2",borderColor:"#c2410c"}]},
+ options:{scales:{y:{ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}},y2:{position:"right",grid:{display:false}}}}});
+$("fAseg").innerHTML="<option value=''>Todas las aseguradoras</option>"+uniq(V.map(v=>v.aseg)).map(a=>`<option>${a}</option>`).join("");
+$("fRamo").innerHTML="<option value=''>Todos los ramos</option>"+uniq(V.map(v=>v.ramo)).map(a=>`<option>${a}</option>`).join("");
+let filtrados=[];
+function cal(){const d=+$("fDias").value,a=$("fAseg").value,r=$("fRamo").value,t=$("fTxt").value.toLowerCase();
+ filtrados=V.filter(v=>v.dias<=d&&(!a||v.aseg==a)&&(!r||v.ramo==r)&&(!t||(v.cliente+v.poliza+v.rfc).toLowerCase().includes(t))).sort((x,y)=>x.dias-y.dias);
+ tabla($("tCal"),[["Días","dias",x=>`<span class="pill ${x.dias<=30?"u":x.dias<=60?"m":"l"}">${x.dias}</span>`],["Vence","fin"],["Cliente","cliente"],["RFC","rfc"],["Aseguradora","aseg"],["Ramo","ramo"],["Póliza","poliza"],["Bien asegurado","bien"],["Prima neta","prima",x=>fmt(x.prima)],["Forma pago","forma"],["Teléfono","tel"],["Correo","correo"]],filtrados);
+ $("nCal").textContent=`${filtrados.length} pólizas · prima neta ${fmt(sum(filtrados))}`}
+["fDias","fAseg","fRamo"].forEach(i=>$(i).onchange=cal);$("fTxt").oninput=cal;cal();
+$("csv").onclick=()=>{const k=["fin","dias","cliente","rfc","aseg","ramo","poliza","bien","prima","forma","tel","correo"];
+ const s="﻿"+k.join(",")+"\n"+filtrados.map(x=>k.map(c=>`"${String(x[c]??"").replace(/"/g,'""')}"`).join(",")).join("\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([s],{type:"text/csv"}));a.download="por_vencer.csv";a.click()};
+
+// Retención
+const agrup=(arr,k)=>{const m={};arr.forEach(r=>{(m[r[k]]??=[]).push(r)});return m};
+const anios=agrup(D.retencion,"anio"),la=Object.keys(anios).sort();
+new Chart($("gRetAnio"),{type:"bar",data:{labels:la,datasets:[{label:"Renovadas",data:la.map(a=>anios[a].filter(r=>r.ren).length),backgroundColor:"#1a8f5a"},{label:"No renovadas",data:la.map(a=>anios[a].filter(r=>!r.ren).length),backgroundColor:"#c2410c"}]},options:{scales:{x:{stacked:true},y:{stacked:true}}}});
+const tRet=(el,k)=>{const g=agrup(retTot,k);tabla(el,[[k=="aseg"?"Aseguradora":"Ramo","n"],["Vencidas","t"],["Renovadas","r"],["% retención","p",x=>x.p.toFixed(0)+"%"]],
+ Object.entries(g).map(([n,a])=>({n,t:a.length,r:a.filter(x=>x.ren).length,p:100*a.filter(x=>x.ren).length/a.length})).sort((a,b)=>b.t-a.t))};
+tRet($("tRA"),"aseg");tRet($("tRR"),"ramo");
+
+// Cartera
+const pal=["#1f5fbf","#1a8f5a","#c2410c","#7c3aed","#db2777","#0891b2","#ca8a04","#4b5563","#65a30d","#dc2626","#0d9488","#9333ea"];
+const dona=(el,k)=>{const g=agrup(V,k),e=Object.entries(g).map(([n,a])=>[n,sum(a)]).sort((a,b)=>b[1]-a[1]);
+ new Chart(el,{type:"doughnut",data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>Math.round(x[1])),backgroundColor:pal}]},options:{plugins:{legend:{position:"right"},tooltip:{callbacks:{label:c=>c.label+": "+fmt(c.raw)}}}}})};
+dona($("gAseg"),"aseg");dona($("gRamo"),"ramo");
+const pc=agrup(V,"cliente"),tot=sum(V);
+tabla($("tTop"),[["Cliente","c"],["Pólizas","n"],["Prima neta","p",x=>fmt(x.p)],["% cartera","s",x=>x.s.toFixed(1)+"%"]],
+ Object.entries(pc).map(([c,a])=>({c,n:a.length,p:sum(a),s:100*sum(a)/tot})).sort((a,b)=>b.p-a.p).slice(0,20));
+tabla($("tCross"),[["Cliente","c"],["Único ramo","r"],["Aseguradora","a"],["Prima neta","p",x=>fmt(x.p)],["Teléfono","t"]],
+ Object.entries(pc).filter(([c,a])=>new Set(a.map(x=>x.ramo)).size==1).map(([c,a])=>({c,r:a[0].ramo,a:a[0].aseg,p:sum(a),t:a[0].tel})).sort((a,b)=>b.p-a.p));
+
+// No renovadas
+tabla($("tPer"),[["Venció","fin"],["Cliente","cliente"],["Aseguradora","aseg"],["Ramo","ramo"],["Póliza","poliza"],["Prima neta","prima",x=>fmt(x.prima)]],D.perdidas);
+</script></body></html>

@@ -1,0 +1,8 @@
+anthropic>=0.70
+pandas
+openpyxl
+pdfplumber
+pdf2image
+pytesseract
+pillow
+python-dotenv
