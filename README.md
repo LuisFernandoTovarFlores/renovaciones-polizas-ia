@@ -2,7 +2,7 @@
 
 Pipeline que convierte ~3,000 documentos de pólizas de seguros (PDFs y escaneos, en carpetas desordenadas) en una **base de datos de renovaciones** y un **tablero interactivo** para una agencia de seguros en México.
 
-**[Ver tablero de demostración →](docs/index.html)** *(datos 100% ficticios)*
+**[Ver tablero de demostración →](https://luisfernandotovarflores.github.io/renovaciones-polizas-ia/)** *(datos 100% ficticios)*
 
 ## El problema
 Una agencia guardaba años de carátulas de pólizas en carpetas por cliente, mezcladas con recibos, endosos, cotizaciones y condiciones generales. No existía una base central para saber **qué vence cada mes, cuánta prima neta está en juego y qué clientes se renovaron o se perdieron**.
